@@ -20,3 +20,8 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+// --- ADDED FOR LOTTERY SCHEDULER ---
+#define SYS_settickets 22
+#define SYS_getpinfo 23
+#define SYS_sleep  24
+#define SYS_testlock 25

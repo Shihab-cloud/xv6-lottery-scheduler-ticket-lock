@@ -5,6 +5,8 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
+#include "defs.h"
 
 struct cpu cpus[NCPU];
 
@@ -146,6 +148,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+   // --- ADDED FOR LOTTERY SCHEDULER ---
+  p->tickets = 1;  // Give every new process 1 ticket by default
+  p->ticks = 0;    // Reset CPU time tracker
+
   return p;
 }
 
@@ -275,6 +281,9 @@ kfork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  // --- ADDED FOR LOTTERY SCHEDULER ---
+  np->tickets = p->tickets; // Inherit the parent's tickets
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -421,43 +430,65 @@ kwait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+// --- ADDED FOR LOTTERY SCHEDULER: PRNG ---
+static unsigned long randstate = 1;
+
+unsigned long rand() {
+  randstate = randstate * 1664525 + 1013904223;
+  return randstate;
+}
+
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  
+  // A simple static LCG Random Number Generator (since xv6 doesn't have rand())
+  static unsigned long randstate = 1;
 
   c->proc = 0;
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
+    // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-    intr_off();
 
-    int found = 0;
+    int total_tickets = 0;
+
+    // PASS 1: Count the total tickets of all RUNNABLE processes
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        total_tickets += p->tickets;
       }
       release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      asm volatile("wfi");
+
+    if(total_tickets > 0) {
+      // Draw the winning ticket
+      randstate = randstate * 1664525 + 1013904223;
+      int winning_ticket = randstate % total_tickets;
+      int running_total = 0;
+
+      // PASS 2: Find the process holding the winning ticket
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          running_total += p->tickets;
+          if(running_total > winning_ticket) {
+            p->ticks++;  // Track the CPU time for schedtest
+            p->state = RUNNING;
+            c->proc = p;
+            swtch(&c->context, &p->context);
+            c->proc = 0;
+            release(&p->lock);
+            
+            // CRITICAL: Break out of the loop so a new lottery ticket can be drawn!
+            break; 
+          }
+        }
+        release(&p->lock);
+      }
     }
   }
 }
@@ -687,4 +718,31 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+// --- ADDED FOR LOTTERY SCHEDULER: getpinfo ---
+int
+getpinfo(uint64 addr)
+{
+  struct pstat tmp;
+  struct proc *p;
+  int i = 0;
+
+  // Gather the data safely by locking each process
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    tmp.inuse[i] = (p->state != UNUSED) ? 1 : 0;
+    tmp.tickets[i] = p->tickets;
+    tmp.pid[i] = p->pid;
+    tmp.ticks[i] = p->ticks;
+    release(&p->lock);
+    i++;
+  }
+
+  // Copy the gathered data to the user-space address provided
+  if(copyout(myproc()->pagetable, addr, (char *)&tmp, sizeof(tmp)) < 0)
+    return -1;
+    
+  return 0;
 }

@@ -7,3 +7,10 @@ struct spinlock {
   struct cpu *cpu;   // The cpu holding the lock.
 };
 
+// --- ADDED FOR TICKET LOCK ---
+struct ticketlock {
+  uint ticket;       // Next available ticket
+  uint turn;         // Ticket currently allowed to run
+  struct cpu *cpu;   // The cpu holding the lock
+  char *name;        // Name of lock
+};

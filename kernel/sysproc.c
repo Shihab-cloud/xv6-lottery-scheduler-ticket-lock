@@ -107,3 +107,83 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// --- ADDED FOR LOTTERY SCHEDULER ---
+uint64
+sys_settickets(void)
+{
+  int n;
+  
+  // Read the integer argument passed from user space
+  argint(0, &n);
+    
+  // Prevent a process from setting negative or zero tickets
+  if(n < 1)
+    return -1;
+
+  // myproc() gets the currently running process
+  myproc()->tickets = n;
+  
+  return 0; // Success
+}
+
+
+uint64
+sys_getpinfo(void)
+{
+  uint64 pstat_addr; // The user pointer passed into the function
+  
+  // Get the pointer from user space
+  argaddr(0, &pstat_addr);
+  if(pstat_addr == 0)
+    return -1;
+    
+  // Call the helper function we wrote in proc.c
+  return getpinfo(pstat_addr);
+}
+
+uint64
+sys_sleep(void)
+{
+  int n;
+  argint(0, &n);
+  
+  // Simple loop to yield the CPU and pass time safely
+  for(int i = 0; i < n; i++) {
+    yield();
+  }
+  
+  return 0;
+}
+
+
+
+struct ticketlock global_test_lock;
+int lock_init_done = 0;
+
+uint64
+sys_testlock(void)
+{
+  // Initialize the lock only once
+  if(lock_init_done == 0){
+    initticketlock(&global_test_lock, "test lock");
+    lock_init_done = 1;
+  }
+
+  // THE FIFO QUEUE: Processes arrive and grab a ticket
+  acquireticket(&global_test_lock);
+  
+  printf("Process %d: Captured Ticket Lock!\n", myproc()->pid);
+  
+  // Hold the lock for a short duration to ensure a queue forms
+  for(int i = 0; i < 500000; i++) {
+     __asm__ volatile("nop"); 
+  }
+
+  releaseticket(&global_test_lock);
+
+  // ADD THIS FOR YOUR REPORT:
+  printf("Process %d: Released Ticket Lock.\n", myproc()->pid);
+
+  return 0;
+}

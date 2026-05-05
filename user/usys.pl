@@ -42,3 +42,8 @@ entry("getpid");
 entry("sbrk");
 entry("pause");
 entry("uptime");
+# --- ADDED FOR LOTTERY SCHEDULER ---
+entry("settickets");
+entry("getpinfo");
+entry("sleep");
+entry("testlock");

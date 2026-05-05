@@ -111,3 +111,60 @@ pop_off(void)
   if(c->noff == 0 && c->intena)
     intr_on();
 }
+
+// --- ADDED FOR TICKET LOCK ---
+void
+initticketlock(struct ticketlock *lk, char *name)
+{
+  lk->name = name;
+  lk->ticket = 0;
+  lk->turn = 0;
+  lk->cpu = 0;
+}
+
+// Check whether this cpu is holding the lock.
+// Interrupts must be off.
+int
+holding_ticketlock(struct ticketlock *lk)
+{
+  int r;
+  r = (lk->cpu == mycpu());
+  return r;
+}
+
+void
+acquireticket(struct ticketlock *lk)
+{
+  push_off(); // disable interrupts to avoid deadlock.
+  if(holding_ticketlock(lk))
+    panic("acquireticket");
+
+  // Atomic fetch-and-add to get our ticket safely
+  uint my_ticket = __sync_fetch_and_add(&lk->ticket, 1);
+
+  // Spin (wait) until it is our turn
+  while(lk->turn != my_ticket)
+    ;
+
+  // Memory barrier to prevent hardware instruction reordering
+  __sync_synchronize();
+
+  lk->cpu = mycpu();
+}
+
+void
+releaseticket(struct ticketlock *lk)
+{
+  if(!holding_ticketlock(lk))
+    panic("releaseticket");
+
+  lk->cpu = 0;
+
+  // Memory barrier
+  __sync_synchronize();
+
+  // Pass the turn to the next ticket atomically
+  __sync_fetch_and_add(&lk->turn, 1);
+
+  pop_off();
+}

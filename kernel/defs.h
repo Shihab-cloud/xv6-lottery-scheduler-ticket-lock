@@ -5,6 +5,7 @@ struct inode;
 struct pipe;
 struct proc;
 struct spinlock;
+struct ticketlock;
 struct sleeplock;
 struct stat;
 struct superblock;
@@ -101,6 +102,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+int             getpinfo(uint64);//added for project
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -112,6 +114,12 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
+
+// --- ADDED FOR TICKET LOCK ---
+void            initticketlock(struct ticketlock*, char*);
+void            acquireticket(struct ticketlock*);
+void            releaseticket(struct ticketlock*);
+int             holding_ticketlock(struct ticketlock*);
 
 // sleeplock.c
 void            acquiresleep(struct sleeplock*);
