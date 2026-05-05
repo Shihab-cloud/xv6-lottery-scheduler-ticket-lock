@@ -1,11 +1,11 @@
-# xv6 Custom Kernel: Lottery Scheduler & Ticket Lock
+# EquiKernel: Proportional-Share Scheduling and FIFO Synchronization in xv6-riscv
 
 ## 📌 Project Overview
 This repository contains a modified version of the MIT xv6 RISC-V operating system kernel. The core objective of this project was to replace default xv6 behaviors with advanced, deterministic resource management techniques. 
 
 The project is divided into two major architectural upgrades:
-1. **Phase 4 - Dynamic Lottery Scheduler:** Replaced the default Round-Robin CPU scheduler with a proportional-share Lottery Scheduler.
-2. **Phase 3 - Starvation-Free Ticket Lock:** Implemented a hardware-backed, strict First-In-First-Out (FIFO) Ticket Lock to replace standard spinlocks, eliminating process starvation.
+1. **Dynamic Lottery Scheduler:** Replaced the default Round-Robin CPU scheduler with a proportional-share Lottery Scheduler.
+2. **Starvation-Free Ticket Lock:** Implemented a hardware-backed, strict First-In-First-Out (FIFO) Ticket Lock to replace standard spinlocks, eliminating process starvation.
 
 ---
 
